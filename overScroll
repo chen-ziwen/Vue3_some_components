@@ -1,0 +1,120 @@
+<!-- 
+slot -> left right 对应大盒子中左边两边的盒子
+props -> 
+time: 盒子触碰到边缘的停留时间，单位为毫秒 ; 
+speed: 盒子运动的速度，默认值为1; 
+response: 需要监听的响应式数据
+width: 最外层盒子的宽度，默认为600
+infinite: 默认false，值为ture时重复往返，直到内部盒子宽度小于外部盒子宽度时停止。 
+-->
+<template>
+    <div class="total-box" ref="totalBox" v-bind="$attrs" :style="{width:width+'px'}">
+        <div class="left-box" ref="leftBox">
+            <slot name="left"></slot>
+        </div>
+        <div class="right-box" ref="rightBox">
+
+            <slot name="right"></slot>
+        </div>
+    </div>
+</template>
+
+<script lang="ts" setup>
+import { ref, watch,nextTick } from 'vue';
+interface totalBox {
+    time:number,
+    speed?:number,
+    response:any,
+    width?:number,
+    infinite?:boolean,
+}
+ const props = withDefaults(defineProps<totalBox>(), {
+        width:600,
+        speed:1,
+        infinite:false  
+    })
+
+type Timer = NodeJS.Timer | null;
+type Timout = NodeJS.Timeout | null;
+
+let timer: Timer = null;
+let timeout: Timout = null;
+
+const leftBox = ref<HTMLDivElement>();
+const totalBox = ref<HTMLDivElement>();
+const rightBox = ref<HTMLDivElement>();
+
+//获取style标签中的css属性值
+function getStyle(obj: any, attr: any) {
+    if (obj.currentStyle) {return obj.currentStyle[attr].replace(/px/, '')}
+    return window.getComputedStyle(obj)[attr].replace(/px/, '');
+};
+//控制div的移动
+function move(element: any, speed: number): void {
+    if (!(leftBox.value && totalBox.value && element)) return;
+    element.style.left = getStyle(element, 'left') - speed + 'px';
+    if (element.offsetLeft >= leftBox.value.offsetWidth) {
+        clearInterval(timer as NodeJS.Timer);
+        clearTimeout(timeout as NodeJS.Timeout);
+        element.style.left = leftBox.value.offsetWidth+'px';
+        if(props.infinite)
+         timeout = setTimeout(() => {
+         timer = setInterval(() => move(rightBox.value, props.speed), 10);
+        }, props.time)
+         
+    }
+    if (element.offsetLeft < 0) {
+        clearInterval(timer as NodeJS.Timer);
+        clearTimeout(timeout as NodeJS.Timer);
+        element.style.left = 0+'px';
+        timeout = setTimeout(() => {
+            timer = setInterval(() => move(element, -props.speed), 10);
+        }, props.time)
+    }
+    
+
+};
+
+watch(()=>props.response, () => {
+    nextTick(()=>{
+    rightBox.value.style.left = leftBox.value.offsetWidth+'px';
+    if (!(leftBox.value && totalBox.value && rightBox.value)) return;
+    if (totalBox.value.offsetWidth <= rightBox.value.offsetWidth + leftBox.value.offsetWidth) {
+        //直接在ts定时器函数中传参会出现重载问题，得改成箭头函数的形式
+        clearTimeout(timeout as NodeJS.Timeout);
+        clearInterval(timer as NodeJS.Timer);
+        timeout = setTimeout(() => {
+            timer = setInterval(() => move(rightBox.value, props.speed), 10);
+        }, props.time)
+        
+    }
+    else {
+        clearInterval(timer as NodeJS.Timer);
+        clearTimeout(timeout as NodeJS.Timeout);
+    }
+    })
+   
+});
+
+
+</script>
+
+<style scoped>
+.total-box {
+    position: relative;
+    background-color: red;
+    width:600px;
+    overflow: hidden;
+    
+}
+.right-box {
+    position: absolute;
+    display: inline-block;
+    z-index: 2;
+}
+.left-box {
+    display: inline-block;
+    z-index: 1;
+}
+
+</style>
